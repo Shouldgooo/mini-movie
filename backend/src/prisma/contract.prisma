@@ -1,0 +1,54 @@
+// use prisma-8
+
+model User {
+  id           Int         @id @default(autoincrement())
+  username     String      @unique
+  displayName  String?
+  email        String      @unique
+  passwordHash String
+  favourites   Favourite[]
+  reviews      Review[]
+  createdAt    TimestamptzString @default(now())
+  updatedAt    temporal.updatedAtString()
+}
+
+model Movie {
+  id          Int         @id @default(autoincrement())
+  externalId  String      @unique
+  titleZh     String
+  titleEn     String?
+  posterUrl   String?
+  releaseYear Int?
+  favourites  Favourite[]
+  reviews     Review[]
+  createdAt   TimestamptzString @default(now())
+  updatedAt   temporal.updatedAtString()
+}
+
+model Favourite {
+  id        Int   @id @default(autoincrement())
+  userId    Int
+  movieId   Int
+
+  user      User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie     Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  createdAt TimestamptzString @default(now())
+
+  @@unique([userId, movieId])
+}
+
+model Review {
+  id        Int    @id @default(autoincrement())
+  content   String
+  userId    Int
+  movieId   Int
+
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie     Movie  @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  createdAt TimestamptzString @default(now())
+  updatedAt temporal.updatedAtString()
+
+  @@unique([userId, movieId])
+}
