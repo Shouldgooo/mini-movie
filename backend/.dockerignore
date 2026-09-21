@@ -1,0 +1,15 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+dist
+coverage
+*.tsbuildinfo
+.DS_Store
+.agents
+.claude
+.cursor
+.devin

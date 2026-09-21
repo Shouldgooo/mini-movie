@@ -4,6 +4,8 @@ import {
   requireAuth,
   type AuthRequest,
 } from "../middleware/auth.middleware.js";
+import { isUniqueConstraintError } from "../lib/errors.js";
+import { favouriteSchema, parsePositiveInt, validateBody } from "../lib/validation.js";
 
 const router = Router();
 
@@ -11,60 +13,54 @@ const router = Router();
 // Add Favourite
 // POST /api/favourites
 // ========================================
-router.post("/", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const userId = req.userId;
-    const { movieId } = req.body;
+router.post(
+  "/",
+  requireAuth,
+  validateBody(favouriteSchema),
+  async (req: AuthRequest, res) => {
+    try {
+      const userId = req.userId;
+      const { movieId } = req.body;
 
-    if (!userId) {
-      return res.status(401).json({
-        message: "Authentication required",
+      if (!userId) {
+        return res.status(401).json({
+          message: "Authentication required",
+        });
+      }
+
+      const movie = await db.orm.public.Movie
+        .where({
+          id: movieId,
+        })
+        .first();
+
+      if (!movie) {
+        return res.status(404).json({
+          message: "Movie not found",
+        });
+      }
+
+      const favourite = await db.orm.public.Favourite.create({
+        userId,
+        movieId,
+      });
+
+      return res.status(201).json(favourite);
+    } catch (error) {
+      console.error(error);
+
+      if (isUniqueConstraintError(error)) {
+        return res.status(409).json({
+          message: "Movie is already in favourites",
+        });
+      }
+
+      return res.status(500).json({
+        message: "Internal server error",
       });
     }
-
-    if (!movieId || typeof movieId !== "number") {
-      return res.status(400).json({
-        message: "Valid movieId is required",
-      });
-    }
-
-    const movie = await db.orm.public.Movie
-      .where({
-        id: movieId,
-      })
-      .first();
-
-    if (!movie) {
-      return res.status(404).json({
-        message: "Movie not found",
-      });
-    }
-
-    const favourite = await db.orm.public.Favourite.create({
-      userId,
-      movieId,
-    });
-
-    return res.status(201).json(favourite);
-  } catch (error) {
-    console.error(error);
-
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "sqlState" in error &&
-      error.sqlState === "23505"
-    ) {
-      return res.status(409).json({
-        message: "Movie is already in favourites",
-      });
-    }
-
-    return res.status(500).json({
-      message: "Internal server error",
-    });
   }
-});
+);
 
 // ========================================
 // Get My Favourites
@@ -104,7 +100,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
 router.delete("/:movieId", requireAuth, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId;
-    const movieId = Number(req.params.movieId);
+    const movieId = parsePositiveInt(req.params.movieId);
 
     if (!userId) {
       return res.status(401).json({
@@ -112,7 +108,7 @@ router.delete("/:movieId", requireAuth, async (req: AuthRequest, res) => {
       });
     }
 
-    if (!Number.isInteger(movieId) || movieId <= 0) {
+    if (!movieId) {
       return res.status(400).json({
         message: "Valid movieId is required",
       });

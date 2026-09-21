@@ -4,6 +4,13 @@ import {
   requireAuth,
   type AuthRequest,
 } from "../middleware/auth.middleware.js";
+import { isUniqueConstraintError } from "../lib/errors.js";
+import {
+  createReviewSchema,
+  parsePositiveInt,
+  updateReviewSchema,
+  validateBody,
+} from "../lib/validation.js";
 
 const router = Router();
 
@@ -11,70 +18,55 @@ const router = Router();
 // Create Review
 // POST /api/reviews
 // ========================================
-router.post("/", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const userId = req.userId;
-    const { movieId, content } = req.body;
+router.post(
+  "/",
+  requireAuth,
+  validateBody(createReviewSchema),
+  async (req: AuthRequest, res) => {
+    try {
+      const userId = req.userId;
+      const { movieId, content } = req.body;
 
-    if (!userId) {
-      return res.status(401).json({
-        message: "Authentication required",
+      if (!userId) {
+        return res.status(401).json({
+          message: "Authentication required",
+        });
+      }
+
+      const movie = await db.orm.public.Movie
+        .where({
+          id: movieId,
+        })
+        .first();
+
+      if (!movie) {
+        return res.status(404).json({
+          message: "Movie not found",
+        });
+      }
+
+      const review = await db.orm.public.Review.create({
+        content,
+        userId,
+        movieId,
+      });
+
+      return res.status(201).json(review);
+    } catch (error) {
+      console.error(error);
+
+      if (isUniqueConstraintError(error)) {
+        return res.status(409).json({
+          message: "You have already reviewed this movie",
+        });
+      }
+
+      return res.status(500).json({
+        message: "Internal server error",
       });
     }
-
-    if (!movieId || typeof movieId !== "number") {
-      return res.status(400).json({
-        message: "Valid movieId is required",
-      });
-    }
-
-    if (
-      typeof content !== "string" ||
-      content.trim().length === 0
-    ) {
-      return res.status(400).json({
-        message: "Review content is required",
-      });
-    }
-
-    const movie = await db.orm.public.Movie
-      .where({
-        id: movieId,
-      })
-      .first();
-
-    if (!movie) {
-      return res.status(404).json({
-        message: "Movie not found",
-      });
-    }
-
-    const review = await db.orm.public.Review.create({
-      content: content.trim(),
-      userId,
-      movieId,
-    });
-
-    return res.status(201).json(review);
-  } catch (error) {
-    console.error(error);
-
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "sqlState" in error &&
-      error.sqlState === "23505"
-    ) {
-      return res.status(409).json({
-        message: "You have already reviewed this movie",
-      });
-    }
-
-    return res.status(500).json({
-      message: "Internal server error",
-    });
   }
-});
+);
 
 // ========================================
 // Get My Reviews
@@ -111,64 +103,60 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
 // Update My Review
 // PUT /api/reviews/:reviewId
 // ========================================
-router.put("/:reviewId", requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const userId = req.userId;
-    const reviewId = Number(req.params.reviewId);
-    const { content } = req.body;
+router.put(
+  "/:reviewId",
+  requireAuth,
+  validateBody(updateReviewSchema),
+  async (req: AuthRequest, res) => {
+    try {
+      const userId = req.userId;
+      const reviewId = parsePositiveInt(req.params.reviewId);
+      const { content } = req.body;
 
-    if (!userId) {
-      return res.status(401).json({
-        message: "Authentication required",
+      if (!userId) {
+        return res.status(401).json({
+          message: "Authentication required",
+        });
+      }
+
+      if (!reviewId) {
+        return res.status(400).json({
+          message: "Valid reviewId is required",
+        });
+      }
+
+      const existingReview = await db.orm.public.Review
+        .where({
+          id: reviewId,
+          userId,
+        })
+        .first();
+
+      if (!existingReview) {
+        return res.status(404).json({
+          message: "Review not found",
+        });
+      }
+
+      const updatedReview = await db.orm.public.Review
+        .where({
+          id: reviewId,
+          userId,
+        })
+        .update({
+          content,
+        });
+
+      return res.status(200).json(updatedReview);
+    } catch (error) {
+      console.error(error);
+
+      return res.status(500).json({
+        message: "Internal server error",
       });
     }
-
-    if (!Number.isInteger(reviewId) || reviewId <= 0) {
-      return res.status(400).json({
-        message: "Valid reviewId is required",
-      });
-    }
-
-    if (
-      typeof content !== "string" ||
-      content.trim().length === 0
-    ) {
-      return res.status(400).json({
-        message: "Review content is required",
-      });
-    }
-
-    const existingReview = await db.orm.public.Review
-      .where({
-        id: reviewId,
-        userId,
-      })
-      .first();
-
-    if (!existingReview) {
-      return res.status(404).json({
-        message: "Review not found",
-      });
-    }
-
-    const updatedReview = await db.orm.public.Review
-      .where({
-        id: reviewId,
-        userId,
-      })
-      .update({
-        content: content.trim(),
-      });
-
-    return res.status(200).json(updatedReview);
-  } catch (error) {
-    console.error(error);
-
-    return res.status(500).json({
-      message: "Internal server error",
-    });
   }
-});
+);
 
 // ========================================
 // Delete My Review
@@ -177,7 +165,7 @@ router.put("/:reviewId", requireAuth, async (req: AuthRequest, res) => {
 router.delete("/:reviewId", requireAuth, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId;
-    const reviewId = Number(req.params.reviewId);
+    const reviewId = parsePositiveInt(req.params.reviewId);
 
     if (!userId) {
       return res.status(401).json({
@@ -185,7 +173,7 @@ router.delete("/:reviewId", requireAuth, async (req: AuthRequest, res) => {
       });
     }
 
-    if (!Number.isInteger(reviewId) || reviewId <= 0) {
+    if (!reviewId) {
       return res.status(400).json({
         message: "Valid reviewId is required",
       });

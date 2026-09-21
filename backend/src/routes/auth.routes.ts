@@ -6,6 +6,13 @@ import {
   requireAuth,
   type AuthRequest,
 } from "../middleware/auth.middleware.js";
+import { isUniqueConstraintError } from "../lib/errors.js";
+import { toAuthUser, toCurrentUser } from "../lib/users.js";
+import {
+  loginSchema,
+  registerSchema,
+  validateBody,
+} from "../lib/validation.js";
 
 const router = Router();
 
@@ -13,41 +20,24 @@ const router = Router();
 // Register
 // POST /api/auth/register
 // ========================================
-router.post("/register", async (req, res) => {
+router.post("/register", validateBody(registerSchema), async (req, res) => {
   try {
     const { username, displayName, email, password } = req.body;
-
-    if (!username || !email || !password) {
-      return res.status(400).json({
-        message: "Username, email and password are required",
-      });
-    }
 
     const passwordHash = await bcrypt.hash(password, 12);
 
     const user = await db.orm.public.User.create({
       username,
-      displayName,
+      displayName: displayName || null,
       email,
       passwordHash,
     });
 
-    return res.status(201).json({
-      id: user.id,
-      username: user.username,
-      displayName: user.displayName,
-      email: user.email,
-      createdAt: user.createdAt,
-    });
+    return res.status(201).json(toCurrentUser(user));
   } catch (error) {
     console.error(error);
 
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "sqlState" in error &&
-      error.sqlState === "23505"
-    ) {
+    if (isUniqueConstraintError(error)) {
       return res.status(409).json({
         message: "Email or username already exists",
       });
@@ -63,15 +53,9 @@ router.post("/register", async (req, res) => {
 // Login
 // POST /api/auth/login
 // ========================================
-router.post("/login", async (req, res) => {
+router.post("/login", validateBody(loginSchema), async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        message: "Email and password are required",
-      });
-    }
 
     const user = await db.orm.public.User
       .where({
@@ -115,12 +99,7 @@ router.post("/login", async (req, res) => {
     return res.status(200).json({
       message: "Login successful",
       token,
-      user: {
-        id: user.id,
-        username: user.username,
-        displayName: user.displayName,
-        email: user.email,
-      },
+      user: toAuthUser(user),
     });
   } catch (error) {
     console.error(error);
@@ -157,13 +136,7 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
       });
     }
 
-    return res.status(200).json({
-      id: user.id,
-      username: user.username,
-      displayName: user.displayName,
-      email: user.email,
-      createdAt: user.createdAt,
-    });
+    return res.status(200).json(toCurrentUser(user));
   } catch (error) {
     console.error(error);
 

@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { db } from "../prisma/db.js";
+import { toPublicUser } from "../lib/users.js";
+import { parsePositiveInt } from "../lib/validation.js";
 
 const router = Router();
 
@@ -31,9 +33,9 @@ router.get("/", async (req, res) => {
 // ========================================
 router.get("/:movieId/reviews", async (req, res) => {
   try {
-    const movieId = Number(req.params.movieId);
+    const movieId = parsePositiveInt(req.params.movieId);
 
-    if (!Number.isInteger(movieId) || movieId <= 0) {
+    if (!movieId) {
       return res.status(400).json({
         message: "Valid movieId is required",
       });
@@ -58,7 +60,17 @@ router.get("/:movieId/reviews", async (req, res) => {
       .include("user")
       .all();
 
-    return res.status(200).json(reviews);
+    const safeReviews = reviews.map((review) => ({
+      id: review.id,
+      content: review.content,
+      movieId: review.movieId,
+      userId: review.userId,
+      createdAt: review.createdAt,
+      updatedAt: review.updatedAt,
+      user: toPublicUser(review.user),
+    }));
+
+    return res.status(200).json(safeReviews);
   } catch (error) {
     console.error(error);
 
