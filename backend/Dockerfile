@@ -6,8 +6,8 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
-RUN chmod +x docker-entrypoint.sh
 
+ENV NODE_ENV=production
 EXPOSE 4000
 
-CMD ["sh", "./docker-entrypoint.sh"]
+CMD ["npm", "start"]
