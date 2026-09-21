@@ -11,11 +11,25 @@ import {
   isUnauthorized,
 } from "@/lib/api";
 import type { Favourite, Review, User } from "@/lib/types";
+import { useLanguage } from "@/lib/i18n/LanguageProvider";
 
 const REVIEW_MAX_LENGTH = 2000;
 
+function journalTitle(
+  movie: { titleZh: string; titleEn: string | null },
+  english: boolean
+) {
+  if (english) {
+    return movie.titleEn || movie.titleZh;
+  }
+
+  return movie.titleZh;
+}
+
 export default function MyPage() {
   const router = useRouter();
+  const { language, t } = useLanguage();
+  const english = language === "en";
 
   const [user, setUser] = useState<User | null>(null);
   const [favourites, setFavourites] = useState<Favourite[]>([]);
@@ -58,14 +72,14 @@ export default function MyPage() {
           return;
         }
 
-        setError("加载数据失败");
+        setError(t("loadDataFail"));
       } finally {
         setIsLoading(false);
       }
     }
 
     loadMyData();
-  }, [router]);
+  }, [router, t]);
 
   function handleLogout() {
     clearStoredToken();
@@ -93,7 +107,7 @@ export default function MyPage() {
       setFavourites((current) =>
         current.filter((favourite) => favourite.movieId !== movieId)
       );
-      setMessage("已取消收藏");
+      setMessage(t("unfavouriteOk"));
     } catch (error) {
       console.error(error);
 
@@ -102,7 +116,7 @@ export default function MyPage() {
         return;
       }
 
-      setError(getErrorMessage(error, "取消收藏失败"));
+      setError(getErrorMessage(error, t("unfavouriteFail")));
     } finally {
       setRemovingMovieId(null);
     }
@@ -136,12 +150,12 @@ export default function MyPage() {
     const content = editContent.trim();
 
     if (!content) {
-      setError("影评内容不能为空");
+      setError(t("reviewContentEmpty"));
       return;
     }
 
     if (content.length > REVIEW_MAX_LENGTH) {
-      setError(`影评不能超过 ${REVIEW_MAX_LENGTH} 个字符`);
+      setError(t("reviewTooLong", { max: REVIEW_MAX_LENGTH }));
       return;
     }
 
@@ -165,7 +179,7 @@ export default function MyPage() {
       );
       setEditingReviewId(null);
       setEditContent("");
-      setMessage("影评已更新");
+      setMessage(t("reviewUpdated"));
     } catch (error) {
       console.error(error);
 
@@ -174,7 +188,7 @@ export default function MyPage() {
         return;
       }
 
-      setError(getErrorMessage(error, "更新影评失败"));
+      setError(getErrorMessage(error, t("updateReviewFail")));
     } finally {
       setSavingReviewId(null);
     }
@@ -206,7 +220,7 @@ export default function MyPage() {
         cancelEditReview();
       }
 
-      setMessage("影评已删除");
+      setMessage(t("reviewDeleted"));
     } catch (error) {
       console.error(error);
 
@@ -215,7 +229,7 @@ export default function MyPage() {
         return;
       }
 
-      setError(getErrorMessage(error, "删除影评失败"));
+      setError(getErrorMessage(error, t("deleteReviewFail")));
     } finally {
       setDeletingReviewId(null);
     }
@@ -223,16 +237,16 @@ export default function MyPage() {
 
   if (isLoading) {
     return (
-      <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-        <p className="text-sm text-muted">加载中...</p>
+      <main className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
+        <p className="text-sm text-muted">{t("loading")}</p>
       </main>
     );
   }
 
   if (error && !user) {
     return (
-      <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+      <main className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
+        <p className="text-sm text-neutral-300" role="alert">
           {error}
         </p>
       </main>
@@ -240,131 +254,140 @@ export default function MyPage() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl space-y-10 px-4 py-10 sm:px-6">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">我的</h1>
-        <p className="text-sm text-muted">管理个人资料、收藏和影评。</p>
+    <main className="mx-auto max-w-7xl space-y-16 px-4 py-12 sm:px-6 sm:py-16">
+      <div>
+        <p className="text-xs tracking-[0.28em] text-muted uppercase">
+            {t("myKicker")}
+          </p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight">{t("myTitle")}</h1>
       </div>
 
       {message && (
-        <p
-          className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
-          role="status"
-        >
+        <p className="text-sm text-neutral-300" role="status">
           {message}
         </p>
       )}
 
       {error && user && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+        <p className="text-sm text-neutral-300" role="alert">
           {error}
         </p>
       )}
 
       {user && (
-        <section className="rounded-2xl border border-border bg-surface p-6">
-          <h2 className="text-lg font-semibold">个人信息</h2>
-          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+        <section>
+          <h2 className="text-sm tracking-[0.2em] text-muted uppercase">
+            {t("profile")}
+          </h2>
+          <dl className="mt-6 grid gap-6 text-sm sm:grid-cols-3">
             <div>
-              <dt className="text-muted">用户名</dt>
-              <dd className="mt-1 font-medium">{user.username}</dd>
+              <dt className="text-muted">{t("username")}</dt>
+              <dd className="mt-1">{user.username}</dd>
             </div>
             <div>
-              <dt className="text-muted">显示名称</dt>
-              <dd className="mt-1 font-medium">{user.displayName || "未设置"}</dd>
+              <dt className="text-muted">{t("displayName")}</dt>
+              <dd className="mt-1">{user.displayName || t("displayNameEmpty")}</dd>
             </div>
             <div>
-              <dt className="text-muted">邮箱</dt>
-              <dd className="mt-1 font-medium">{user.email}</dd>
+              <dt className="text-muted">{t("email")}</dt>
+              <dd className="mt-1">{user.email}</dd>
             </div>
           </dl>
           <button
             type="button"
             onClick={handleLogout}
-            className="mt-6 rounded-lg border border-border px-4 py-2 text-sm font-medium transition-colors hover:bg-stone-100"
+            className="mt-8 text-sm underline-offset-4 hover:underline"
           >
-            退出登录
+            {t("logout")}
           </button>
         </section>
       )}
 
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">我的收藏</h2>
+      <section>
+        <h2 className="text-sm tracking-[0.2em] text-muted uppercase">
+            {t("myFavourites")}
+        </h2>
 
         {favourites.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border bg-surface px-6 py-12 text-center">
-            <p className="text-sm text-muted">暂时没有收藏。</p>
-          </div>
+          <p className="mt-8 text-sm text-muted">{t("noFavourites")}</p>
         ) : (
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="mt-8 grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:grid-cols-5">
             {favourites.map((favourite) => (
-              <li
-                key={favourite.id}
-                className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm"
-              >
+              <li key={favourite.id} className="min-w-0">
                 <MoviePoster
-                  title={favourite.movie.titleZh}
+                  title={journalTitle(favourite.movie, english)}
                   posterUrl={favourite.movie.posterUrl}
                 />
-                <div className="space-y-3 p-4">
-                  <div>
-                    <p className="font-semibold">{favourite.movie.titleZh}</p>
-                    {favourite.movie.titleEn && (
-                      <p className="text-sm text-muted">
-                        {favourite.movie.titleEn}
-                      </p>
-                    )}
-                    {favourite.movie.releaseYear && (
-                      <p className="text-sm text-muted">
-                        {favourite.movie.releaseYear}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveFavourite(favourite.movieId)}
-                    disabled={removingMovieId === favourite.movieId}
-                    className="w-full rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {removingMovieId === favourite.movieId
-                      ? "移除中..."
-                      : "取消收藏"}
-                  </button>
-                </div>
+                <p className="mt-3 truncate text-sm">
+                  {journalTitle(favourite.movie, english)}
+                </p>
+                {!english && favourite.movie.titleEn && (
+                  <p className="truncate text-xs text-muted">
+                    {favourite.movie.titleEn}
+                  </p>
+                )}
+                {english &&
+                  favourite.movie.titleZh &&
+                  favourite.movie.titleZh !== favourite.movie.titleEn && (
+                  <p className="truncate text-xs text-muted">
+                    {favourite.movie.titleZh}
+                  </p>
+                )}
+                {favourite.movie.releaseYear && (
+                  <p className="text-xs text-muted">
+                    {favourite.movie.releaseYear}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveFavourite(favourite.movieId)}
+                  disabled={removingMovieId === favourite.movieId}
+                  className="mt-3 text-xs text-muted underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
+                >
+                  {removingMovieId === favourite.movieId
+                    ? t("removingFavourite")
+                    : t("removeFavourite")}
+                </button>
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">我的影评</h2>
+      <section>
+        <h2 className="text-sm tracking-[0.2em] text-muted uppercase">
+            {t("myReviews")}
+        </h2>
 
         {reviews.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border bg-surface px-6 py-12 text-center">
-            <p className="text-sm text-muted">暂时没有影评。</p>
-          </div>
+          <p className="mt-8 text-sm text-muted">{t("noReviews")}</p>
         ) : (
-          <ul className="space-y-4">
+          <ul className="mt-8 divide-y divide-border">
             {reviews.map((review) => (
-              <li
-                key={review.id}
-                className="rounded-2xl border border-border bg-surface p-5 shadow-sm"
-              >
-                <div className="flex gap-4">
-                  <div className="hidden w-20 shrink-0 overflow-hidden rounded-lg sm:block">
+              <li key={review.id} className="py-8 first:pt-0">
+                <div className="flex gap-5">
+                  <div className="hidden w-20 shrink-0 sm:block">
                     <MoviePoster
-                      title={review.movie.titleZh}
+                      title={journalTitle(review.movie, english)}
                       posterUrl={review.movie.posterUrl}
                     />
                   </div>
 
                   <div className="min-w-0 flex-1 space-y-3">
                     <div>
-                      <h3 className="font-semibold">{review.movie.titleZh}</h3>
-                      {review.movie.titleEn && (
+                      <h3 className="text-lg font-medium">
+                        {journalTitle(review.movie, english)}
+                      </h3>
+                      {!english && review.movie.titleEn && (
                         <p className="text-sm text-muted">
                           {review.movie.titleEn}
+                        </p>
+                      )}
+                      {english &&
+                        review.movie.titleZh &&
+                        review.movie.titleZh !== review.movie.titleEn && (
+                        <p className="text-sm text-muted">
+                          {review.movie.titleZh}
                         </p>
                       )}
                     </div>
@@ -380,7 +403,7 @@ export default function MyPage() {
                           htmlFor={`edit-review-${review.id}`}
                           className="sr-only"
                         >
-                          编辑影评
+                          {t("editReview")}
                         </label>
                         <textarea
                           id={`edit-review-${review.id}`}
@@ -390,49 +413,49 @@ export default function MyPage() {
                           }
                           maxLength={REVIEW_MAX_LENGTH}
                           rows={4}
-                          className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent"
+                          className="w-full border border-border bg-transparent px-3 py-2 text-sm outline-none"
                         />
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-4 text-sm">
                           <button
                             type="submit"
                             disabled={savingReviewId === review.id}
-                            className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+                            className="underline-offset-4 hover:underline disabled:opacity-50"
                           >
                             {savingReviewId === review.id
-                              ? "保存中..."
-                              : "保存"}
+                              ? t("savingReview")
+                              : t("saveReview")}
                           </button>
                           <button
                             type="button"
                             onClick={cancelEditReview}
-                            className="rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-stone-100"
+                            className="text-muted underline-offset-4 hover:text-foreground hover:underline"
                           >
-                            取消
+                            {t("cancel")}
                           </button>
                         </div>
                       </form>
                     ) : (
                       <>
-                        <p className="whitespace-pre-wrap text-sm leading-6">
+                        <p className="whitespace-pre-wrap text-sm leading-7 text-neutral-200">
                           {review.content}
                         </p>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-4 text-xs">
                           <button
                             type="button"
                             onClick={() => startEditReview(review)}
-                            className="rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-stone-100"
+                            className="underline-offset-4 hover:underline"
                           >
-                            编辑
+                            {t("editReview")}
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDeleteReview(review.id)}
                             disabled={deletingReviewId === review.id}
-                            className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="text-muted underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
                           >
                             {deletingReviewId === review.id
-                              ? "删除中..."
-                              : "删除"}
+                              ? t("deletingReview")
+                              : t("deleteReview")}
                           </button>
                         </div>
                       </>

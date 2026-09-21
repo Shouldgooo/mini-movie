@@ -5,6 +5,7 @@ import {
   deleteUserById,
   registerAndLogin,
   request,
+  uniqueSuffix,
 } from "./helpers.js";
 
 const createdUserIds: number[] = [];
@@ -54,12 +55,28 @@ describe("authentication", () => {
     expect(registerResponse.status).toBe(201);
     expect(registerResponse.body.passwordHash).toBeUndefined();
     expect(JSON.stringify(registerResponse.body)).not.toContain("passwordHash");
+    expect(registerResponse.body.token).toBeUndefined();
 
     expect(loginResponse.status).toBe(200);
     expect(loginResponse.body.token).toBeTruthy();
     expect(loginResponse.body.user.email).toBeTruthy();
     expect(loginResponse.body.user.passwordHash).toBeUndefined();
     expect(JSON.stringify(loginResponse.body)).not.toContain("passwordHash");
+  });
+
+  it("rejects a duplicate email without exposing internals", async () => {
+    const { user, userId } = await registerAndLogin();
+    createdUserIds.push(userId);
+
+    const response = await request(app).post("/api/auth/register").send({
+      username: `other_${uniqueSuffix()}`.slice(0, 30),
+      email: user.email,
+      password: "password123",
+    });
+
+    expect(response.status).toBe(409);
+    expect(response.body.message).toBe("Email or username already exists");
+    expect(JSON.stringify(response.body)).not.toMatch(/passwordHash|jwt|secret/i);
   });
 
   it("returns 401 for the wrong password", async () => {

@@ -82,7 +82,7 @@ export function isUnauthorized(error: unknown): boolean {
 
 export function getErrorMessage(error: unknown, fallback = "请求失败"): string {
   if (error instanceof TypeError) {
-    return "无法连接服务器";
+    return fallback;
   }
 
   if (error instanceof Error && error.message) {

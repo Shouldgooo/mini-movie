@@ -5,7 +5,11 @@ import {
   type AuthRequest,
 } from "../middleware/auth.middleware.js";
 import { isUniqueConstraintError } from "../lib/errors.js";
+import { MovieNotFoundError, resolveLocalMovie } from "../lib/movies.js";
 import { favouriteSchema, parsePositiveInt, validateBody } from "../lib/validation.js";
+import {
+  TmdbUnavailableError,
+} from "../services/tmdb.js";
 
 const router = Router();
 
@@ -20,7 +24,7 @@ router.post(
   async (req: AuthRequest, res) => {
     try {
       const userId = req.userId;
-      const { movieId } = req.body;
+      const { movieId, externalId } = req.body;
 
       if (!userId) {
         return res.status(401).json({
@@ -28,26 +32,31 @@ router.post(
         });
       }
 
-      const movie = await db.orm.public.Movie
-        .where({
-          id: movieId,
-        })
-        .first();
-
-      if (!movie) {
-        return res.status(404).json({
-          message: "Movie not found",
-        });
-      }
+      const movie = await resolveLocalMovie({
+        movieId,
+        externalId,
+      });
 
       const favourite = await db.orm.public.Favourite.create({
         userId,
-        movieId,
+        movieId: movie.id,
       });
 
       return res.status(201).json(favourite);
     } catch (error) {
       console.error(error);
+
+      if (error instanceof MovieNotFoundError) {
+        return res.status(404).json({
+          message: "Movie not found",
+        });
+      }
+
+      if (error instanceof TmdbUnavailableError) {
+        return res.status(502).json({
+          message: "Movie service unavailable",
+        });
+      }
 
       if (isUniqueConstraintError(error)) {
         return res.status(409).json({

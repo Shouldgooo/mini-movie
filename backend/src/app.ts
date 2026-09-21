@@ -4,6 +4,7 @@ import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import healthRouter from "./routes/health.routes.js";
 import movieRouter from "./routes/movie.routes.js";
+import collectionRouter from "./routes/collection.routes.js";
 import authRouter from "./routes/auth.routes.js";
 import favouriteRouter from "./routes/favourite.routes.js";
 import reviewRouter from "./routes/review.routes.js";
@@ -37,6 +38,7 @@ const authLimiter = rateLimit({
 
 app.use("/api/health", healthRouter);
 app.use("/api/movies", movieRouter);
+app.use("/api/collections", collectionRouter);
 app.use("/api/auth", authLimiter, authRouter);
 app.use("/api/favourites", favouriteRouter);
 app.use("/api/reviews", reviewRouter);

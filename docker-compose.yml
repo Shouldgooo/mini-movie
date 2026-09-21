@@ -23,6 +23,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-minimovie}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-minimovie}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the root .env file}
+      TMDB_ACCESS_TOKEN: ${TMDB_ACCESS_TOKEN:?Set TMDB_ACCESS_TOKEN in the root .env file}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       PORT: 4000
     ports:
