@@ -119,6 +119,88 @@ describe("TMDB movie catalogue", () => {
   });
 });
 
+describe("GET /api/movies/search", () => {
+  it("returns normalized movies for a valid title query", async () => {
+    const searchSpy = vi
+      .spyOn(tmdbClient, "searchMovies")
+      .mockResolvedValue([sampleMovie]);
+
+    const response = await request(app).get("/api/movies/search").query({
+      query: "Interstellar",
+    });
+
+    expect(response.status).toBe(200);
+    expect(searchSpy).toHaveBeenCalledWith("Interstellar");
+    expect(response.body).toEqual([sampleMovie]);
+    expect(JSON.stringify(response.body)).not.toMatch(/access.?token|bearer /i);
+  });
+
+  it("trims the search query before calling TMDB", async () => {
+    const searchSpy = vi
+      .spyOn(tmdbClient, "searchMovies")
+      .mockResolvedValue([sampleMovie]);
+
+    const response = await request(app).get("/api/movies/search").query({
+      query: "  Interstellar  ",
+    });
+
+    expect(response.status).toBe(200);
+    expect(searchSpy).toHaveBeenCalledWith("Interstellar");
+  });
+
+  it("returns 400 when the query is missing", async () => {
+    const searchSpy = vi.spyOn(tmdbClient, "searchMovies");
+
+    const response = await request(app).get("/api/movies/search");
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe("Search query is required");
+    expect(searchSpy).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when the query is empty or whitespace", async () => {
+    const searchSpy = vi.spyOn(tmdbClient, "searchMovies");
+
+    const empty = await request(app).get("/api/movies/search").query({
+      query: "",
+    });
+    const whitespace = await request(app).get("/api/movies/search").query({
+      query: "   ",
+    });
+
+    expect(empty.status).toBe(400);
+    expect(whitespace.status).toBe(400);
+    expect(empty.body.message).toBe("Search query is required");
+    expect(whitespace.body.message).toBe("Search query is required");
+    expect(searchSpy).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty list when TMDB finds no matches", async () => {
+    vi.spyOn(tmdbClient, "searchMovies").mockResolvedValue([]);
+
+    const response = await request(app).get("/api/movies/search").query({
+      query: "zzzznotamovie",
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([]);
+  });
+
+  it("returns 502 when TMDB search is unavailable", async () => {
+    vi.spyOn(tmdbClient, "searchMovies").mockRejectedValue(
+      new TmdbUnavailableError()
+    );
+
+    const response = await request(app).get("/api/movies/search").query({
+      query: "Interstellar",
+    });
+
+    expect(response.status).toBe(502);
+    expect(response.body.message).toBe("Movie service unavailable");
+    expect(JSON.stringify(response.body)).not.toMatch(/access.?token|bearer /i);
+  });
+});
+
 describe("daily recommendation and rankings", () => {
   function mockCuratedSources(pool?: TmdbCandidate[]) {
     const movies =

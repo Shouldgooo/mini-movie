@@ -4,7 +4,9 @@ import { toPublicUser } from "../lib/users.js";
 import {
   parsePositiveInt,
   parseRankingQuery,
+  parseSearchQuery,
   RankingFilterError,
+  SearchQueryError,
 } from "../lib/validation.js";
 import {
   TmdbNotFoundError,
@@ -106,6 +108,26 @@ router.get("/restricted-mainland", async (req, res) => {
     return res.status(200).json(movies);
   } catch (error) {
     if (error instanceof RankingFilterError) {
+      return res.status(400).json({
+        message: error.message,
+      });
+    }
+
+    return tmdbErrorResponse(error, res);
+  }
+});
+
+// ========================================
+// Title search
+// GET /api/movies/search?query=Interstellar
+// ========================================
+router.get("/search", async (req, res) => {
+  try {
+    const query = parseSearchQuery(req.query as Record<string, unknown>);
+    const movies = await tmdbClient.searchMovies(query);
+    return res.status(200).json(movies);
+  } catch (error) {
+    if (error instanceof SearchQueryError) {
       return res.status(400).json({
         message: error.message,
       });

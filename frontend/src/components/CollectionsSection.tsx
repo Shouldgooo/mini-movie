@@ -44,7 +44,7 @@ function metaLine(collection: CollectionSummary, english: boolean) {
   return [countries.join(" / "), period].filter(Boolean).join("  ·  ");
 }
 
-export default function CollectionsIndexPage() {
+export default function CollectionsSection() {
   const { language, t } = useLanguage();
   const english = language === "en";
   const [collections, setCollections] = useState<CollectionSummary[]>([]);
@@ -71,61 +71,57 @@ export default function CollectionsIndexPage() {
   const featuredSlugs = new Set(featured.map((collection) => collection.slug));
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-16">
-      <p className="text-xs tracking-[0.28em] text-muted uppercase">
+    <section id="collections" className="mt-20 scroll-mt-8">
+      <h2 className="text-xs tracking-[0.24em] text-muted">
         {t("collectionsKicker")}
-      </p>
-      <p className="mt-3 text-xs tracking-[0.24em] text-muted uppercase">
-        Collections
-      </p>
-      <h1 className="mt-8 max-w-xl text-3xl font-semibold tracking-tight sm:text-5xl">
-        {t("collectionsTitle")}
-      </h1>
+      </h2>
 
-      {isLoading && <p className="mt-16 text-sm text-muted">{t("loading")}</p>}
+      {isLoading && <p className="mt-8 text-sm text-muted">{t("loading")}</p>}
 
       {error && (
-        <p className="mt-16 text-sm text-neutral-300" role="alert">
+        <p className="mt-8 text-sm text-neutral-300" role="alert">
           {error}
         </p>
       )}
 
       {!isLoading && !error && (
         <>
-          <section className="mt-16">
-            <p className="text-xs tracking-[0.24em] text-muted">
-              {t("featuredCollections")}
-            </p>
-            <ol className="mt-8 divide-y divide-border border-t border-border">
-              {featured.map((collection, index) => (
-                <li key={collection.slug} className="py-10">
-                  <p className="font-mono text-sm text-muted">
-                    {String(index + 1).padStart(2, "0")}
-                  </p>
-                  <h2 className="mt-4 text-2xl font-medium tracking-tight sm:text-4xl">
-                    {collectionTitle(collection, english)}
-                  </h2>
-                  <p className="mt-2 text-sm tracking-[0.16em] text-muted uppercase">
-                    {collectionSecondary(collection, english)}
-                  </p>
-                  {metaLine(collection, english) && (
-                    <p className="mt-3 text-sm text-muted">
-                      {metaLine(collection, english)}
+          {featured.length > 0 && (
+            <div className="mt-8">
+              <p className="text-xs tracking-[0.24em] text-muted">
+                {t("featuredCollections")}
+              </p>
+              <ol className="mt-6 divide-y divide-border border-t border-border">
+                {featured.map((collection, index) => (
+                  <li key={collection.slug} className="py-10">
+                    <p className="font-mono text-sm text-muted">
+                      {String(index + 1).padStart(2, "0")}
                     </p>
-                  )}
-                  <p className="mt-5 max-w-2xl text-sm leading-7 text-neutral-300">
-                    {collectionDescription(collection, english)}
-                  </p>
-                  <Link
-                    href={`/collections/${collection.slug}`}
-                    className="mt-6 inline-block text-sm underline-offset-4 hover:underline"
-                  >
-                    {t("viewCollection")}
-                  </Link>
-                </li>
-              ))}
-            </ol>
-          </section>
+                    <h3 className="mt-4 text-2xl font-medium tracking-tight sm:text-4xl">
+                      {collectionTitle(collection, english)}
+                    </h3>
+                    <p className="mt-2 text-sm tracking-[0.16em] text-muted uppercase">
+                      {collectionSecondary(collection, english)}
+                    </p>
+                    {metaLine(collection, english) && (
+                      <p className="mt-3 text-sm text-muted">
+                        {metaLine(collection, english)}
+                      </p>
+                    )}
+                    <p className="mt-5 max-w-2xl text-sm leading-7 text-neutral-300">
+                      {collectionDescription(collection, english)}
+                    </p>
+                    <Link
+                      href={`/collections/${collection.slug}`}
+                      className="mt-6 inline-block text-sm underline-offset-4 hover:underline"
+                    >
+                      {t("viewCollection")}
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
 
           {GROUP_ORDER.map((group) => {
             const items = collections.filter(
@@ -139,10 +135,10 @@ export default function CollectionsIndexPage() {
             }
 
             return (
-              <section key={group.id} className="mt-20">
-                <h2 className="text-xs tracking-[0.24em] text-muted">
+              <div key={group.id} className="mt-16">
+                <h3 className="text-xs tracking-[0.24em] text-muted">
                   {t(group.labelKey as MessageKey)}
-                </h2>
+                </h3>
                 <ol className="mt-6 divide-y divide-border border-t border-border">
                   {items.map((collection, index) => (
                     <li key={collection.slug} className="py-6">
@@ -173,11 +169,11 @@ export default function CollectionsIndexPage() {
                     </li>
                   ))}
                 </ol>
-              </section>
+              </div>
             );
           })}
         </>
       )}
-    </main>
+    </section>
   );
 }

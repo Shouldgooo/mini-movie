@@ -138,6 +138,39 @@ export class RankingFilterError extends Error {
   }
 }
 
+export class SearchQueryError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SearchQueryError";
+  }
+}
+
+export const SEARCH_QUERY_MAX_LENGTH = 200;
+
+export function parseSearchQuery(query: Record<string, unknown>): string {
+  const raw = firstQueryString(query.query);
+
+  if (query.query !== undefined && raw === undefined) {
+    throw new SearchQueryError("Search query is required");
+  }
+
+  if (raw === undefined) {
+    throw new SearchQueryError("Search query is required");
+  }
+
+  const trimmed = raw.trim();
+
+  if (!trimmed) {
+    throw new SearchQueryError("Search query is required");
+  }
+
+  if (trimmed.length > SEARCH_QUERY_MAX_LENGTH) {
+    throw new SearchQueryError("Search query is too long");
+  }
+
+  return trimmed;
+}
+
 function firstQueryString(value: unknown): string | undefined {
   if (typeof value === "string") {
     return value;

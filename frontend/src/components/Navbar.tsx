@@ -7,7 +7,6 @@ import { useLanguage } from "@/lib/i18n/LanguageProvider";
 
 const links = [
   { href: "/discover", key: "navDiscover" },
-  { href: "/collections", key: "navCollections" },
   { href: "/my", key: "navMy" },
   { href: "/login", key: "navLogin" },
 ] as const;
@@ -32,7 +31,10 @@ export default function Navbar() {
         <div className="flex items-center gap-4 text-sm sm:gap-6">
           {links.map((link) => {
             const isActive =
-              pathname === link.href || pathname.startsWith(`${link.href}/`);
+              pathname === link.href ||
+              pathname.startsWith(`${link.href}/`) ||
+              (link.href === "/discover" &&
+                pathname.startsWith("/collections/"));
 
             return (
               <Link

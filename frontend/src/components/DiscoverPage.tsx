@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState, type MouseEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import MoviePoster from "@/components/MoviePoster";
 import MovieJournalActions from "@/components/MovieJournalActions";
 import ExpandableOverview from "@/components/ExpandableOverview";
+import MovieSearchResults from "@/components/MovieSearchResults";
+import CollectionsSection from "@/components/CollectionsSection";
 import { apiFetch } from "@/lib/api";
 import type { CatalogMovie } from "@/lib/types";
 import { useLanguage } from "@/lib/i18n/LanguageProvider";
 import type { MessageKey } from "@/lib/i18n/dictionary";
+import { useMovieSearch } from "@/lib/useMovieSearch";
 import {
   creditLine,
   displayOriginalLine,
@@ -21,13 +25,6 @@ type RankingTab =
   | "recent"
   | "hidden-gems"
   | "top-rated";
-type RegionFilter =
-  | "all"
-  | "asia"
-  | "europe"
-  | "north-america"
-  | "latin-america"
-  | "other";
 
 const rankingTabs: { id: RankingTab; labelKey: MessageKey }[] = [
   { id: "today", labelKey: "rankingToday" },
@@ -37,78 +34,53 @@ const rankingTabs: { id: RankingTab; labelKey: MessageKey }[] = [
   { id: "top-rated", labelKey: "rankingTop" },
 ];
 
-const regionOptions: { id: RegionFilter; labelKey: MessageKey }[] = [
-  { id: "all", labelKey: "regionAll" },
-  { id: "asia", labelKey: "regionAsia" },
-  { id: "europe", labelKey: "regionEurope" },
-  { id: "north-america", labelKey: "regionNorthAmerica" },
-  { id: "latin-america", labelKey: "regionLatinAmerica" },
-  { id: "other", labelKey: "regionOther" },
-];
-
-function yearOptions(
-  t: (key: MessageKey, vars?: Record<string, string | number>) => string,
-  now = new Date()
-) {
-  const current = now.getFullYear();
-  const options = [{ value: "all", label: t("yearAll") }];
-
-  options.push({
-    value: String(current),
-    label: t("yearLatest", { year: current }),
-  });
-
-  for (let year = current - 1; year >= 2020; year -= 1) {
-    options.push({ value: String(year), label: String(year) });
-  }
-
-  for (const decade of [2010, 2000, 1990, 1980, 1970, 1960]) {
-    options.push({
-      value: `${decade}s`,
-      label: t("yearDecade", { year: decade }),
-    });
-  }
-
-  options.push({ value: "earlier", label: t("yearEarlier") });
-  return options;
-}
-
 function rankingPath(tab: RankingTab) {
   return `/api/movies/rankings/${tab}`;
 }
 
 export default function DiscoverPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { language, t } = useLanguage();
+  const urlQuery = searchParams.get("q") ?? "";
+  const committedQuery = urlQuery.trim();
+  const isSearchMode = committedQuery.length > 0;
+
+  const [input, setInput] = useState(urlQuery);
+  const [inputSource, setInputSource] = useState(urlQuery);
   const [tab, setTab] = useState<RankingTab>("today");
-  const [region, setRegion] = useState<RegionFilter>("all");
-  const [year, setYear] = useState("all");
   const [movies, setMovies] = useState<CatalogMovie[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [formError, setFormError] = useState("");
+  const [journalError, setJournalError] = useState("");
+
+  const search = useMovieSearch(committedQuery);
+
+  if (urlQuery !== inputSource) {
+    setInputSource(urlQuery);
+    setInput(urlQuery);
+    setFormError("");
+    setJournalError("");
+    setMessage("");
+  }
 
   useEffect(() => {
+    if (isSearchMode) {
+      return;
+    }
+
     const controller = new AbortController();
 
     async function loadRanking() {
       setIsLoading(true);
       setError("");
       setMessage("");
+      setJournalError("");
 
       try {
-        const params = new URLSearchParams();
-
-        if (region !== "all") {
-          params.set("region", region);
-        }
-
-        if (year !== "all") {
-          params.set("year", year);
-        }
-
-        const query = params.toString();
-        const path = `${rankingPath(tab)}${query ? `?${query}` : ""}`;
-        const data = await apiFetch<CatalogMovie[]>(path, {
+        const data = await apiFetch<CatalogMovie[]>(rankingPath(tab), {
           signal: controller.signal,
         });
         setMovies(data);
@@ -133,9 +105,94 @@ export default function DiscoverPage() {
     loadRanking();
 
     return () => controller.abort();
-  }, [tab, region, year, t]);
+  }, [tab, t, isSearchMode]);
 
-  const years = yearOptions(t);
+  useEffect(() => {
+    if (isSearchMode) {
+      return;
+    }
+
+    if (window.location.hash !== "#collections") {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById("collections")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isSearchMode]);
+
+  function goToSearch(query: string) {
+    router.replace(`/discover?q=${encodeURIComponent(query)}`);
+  }
+
+  function clearSearch() {
+    setInput("");
+    setFormError("");
+    setJournalError("");
+    setMessage("");
+    router.replace("/discover");
+  }
+
+  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const trimmed = input.trim();
+
+    if (!trimmed) {
+      if (isSearchMode) {
+        clearSearch();
+        return;
+      }
+
+      setFormError(t("searchQueryRequired"));
+      return;
+    }
+
+    setFormError("");
+    setJournalError("");
+    setMessage("");
+    goToSearch(trimmed);
+  }
+
+  function handleSearchChange(value: string) {
+    setInput(value);
+
+    if (!value.trim() && isSearchMode) {
+      clearSearch();
+    }
+  }
+
+  function scrollToCollections() {
+    document.getElementById("collections")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+
+  function handleCollectionsJump(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+
+    if (isSearchMode) {
+      setInput("");
+      setFormError("");
+      setJournalError("");
+      setMessage("");
+      router.replace("/discover#collections");
+      return;
+    }
+
+    window.history.replaceState(null, "", "/discover#collections");
+    scrollToCollections();
+  }
+
+  const displayError = isSearchMode
+    ? formError || journalError || search.error
+    : formError || error;
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-16">
@@ -146,12 +203,12 @@ export default function DiscoverPage() {
 
       <section className="mt-10">
         <p className="text-xs tracking-[0.24em] text-muted">
-          {t("rankingSection")}
+          {t("exploreSection")}
         </p>
-        <div className="-mx-4 mt-4 overflow-x-auto px-4">
-          <div className="flex min-w-max gap-6 text-sm">
+        <div className="mt-4 flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+          <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-2 text-sm">
             {rankingTabs.map((item) => {
-              const isActive = tab === item.id;
+              const isActive = tab === item.id && !isSearchMode;
 
               return (
                 <button
@@ -169,117 +226,150 @@ export default function DiscoverPage() {
                 </button>
               );
             })}
+            <a
+              href="/discover#collections"
+              onClick={handleCollectionsJump}
+              className="pb-2 text-muted underline-offset-4 hover:text-foreground hover:underline"
+            >
+              {t("collectionsJump")}
+            </a>
           </div>
-        </div>
-      </section>
-
-      <section className="mt-8">
-        <p className="text-xs tracking-[0.24em] text-muted">
-          {t("regionSection")}
-        </p>
-        <div className="-mx-4 mt-4 overflow-x-auto px-4">
-          <div className="flex min-w-max gap-5 text-sm">
-            {regionOptions.map((item) => {
-              const isActive = region === item.id;
-
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setRegion(item.id)}
-                  aria-pressed={isActive}
-                  className={`pb-2 tracking-wide whitespace-nowrap ${
-                    isActive
-                      ? "border-b border-foreground text-foreground"
-                      : "text-muted hover:text-foreground"
-                  }`}
-                >
-                  {t(item.labelKey)}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      <section className="mt-8">
-        <p className="text-xs tracking-[0.24em] text-muted">
-          {t("yearSection")}
-        </p>
-        <label className="mt-4 block max-w-xs text-sm">
-          <span className="sr-only">{t("yearSelect")}</span>
-          <select
-            value={year}
-            onChange={(event) => setYear(event.target.value)}
-            className="w-full border border-border bg-background px-3 py-2 text-foreground"
-            style={{ colorScheme: "dark" }}
+          <form
+            onSubmit={handleSearchSubmit}
+            className="flex w-full min-w-[16rem] items-end gap-3 sm:w-64 sm:flex-none lg:w-72"
           >
-            {years.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+            <label htmlFor="discover-search" className="sr-only">
+              {t("searchPlaceholder")}
+            </label>
+            <input
+              id="discover-search"
+              name="q"
+              type="search"
+              value={input}
+              onChange={(event) => handleSearchChange(event.target.value)}
+              placeholder={t("searchPlaceholder")}
+              autoComplete="off"
+              className="min-w-0 flex-1 border-b border-border bg-transparent py-2 text-sm outline-none"
+            />
+            <button
+              type="submit"
+              className="shrink-0 pb-2 text-sm underline-offset-4 hover:underline"
+            >
+              {t("searchAction")}
+            </button>
+          </form>
+        </div>
       </section>
 
-      {message && (
-        <p className="mt-8 text-sm text-neutral-300" role="status">
-          {message}
-        </p>
-      )}
+      {isSearchMode ? (
+        <>
+          <div className="mt-10 flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="text-sm tracking-wide text-muted">
+              {t("searchResults", { query: committedQuery })}
+            </h2>
+            <button
+              type="button"
+              onClick={clearSearch}
+              className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
+            >
+              {t("searchClear")}
+            </button>
+          </div>
 
-      {error && (
-        <p className="mt-8 text-sm text-neutral-300" role="alert">
-          {error}
-        </p>
-      )}
+          {message && (
+            <p className="mt-8 text-sm text-neutral-300" role="status">
+              {message}
+            </p>
+          )}
 
-      {isLoading ? (
-        <p className="mt-16 text-sm text-muted">{t("loading")}</p>
-      ) : movies.length === 0 ? (
-        <p className="mt-16 text-sm text-muted">{t("rankingEmpty")}</p>
+          {displayError && (
+            <p className="mt-8 text-sm text-neutral-300" role="alert">
+              {displayError}
+            </p>
+          )}
+
+          {search.isLoading ? (
+            <p className="mt-16 text-sm text-muted">{t("loading")}</p>
+          ) : search.movies.length === 0 && !search.error ? (
+            <div className="mt-16 text-sm text-muted">
+              <p>{t("searchEmpty")}</p>
+              <p className="mt-2">{t("searchEmptyHint")}</p>
+            </div>
+          ) : search.movies.length > 0 ? (
+            <MovieSearchResults
+              movies={search.movies}
+              onMessage={setMessage}
+              onError={setJournalError}
+            />
+          ) : null}
+        </>
       ) : (
-        <ol className="mt-12 divide-y divide-border">
-          {movies.map((movie, index) => {
-            const title = displayTitle(movie, language);
+        <>
+          {message && (
+            <p className="mt-8 text-sm text-neutral-300" role="status">
+              {message}
+            </p>
+          )}
 
-            return (
-              <li key={movie.externalId} className="py-10 first:pt-0">
-                <article className="grid grid-cols-[auto_5.5rem_minmax(0,1fr)] items-start gap-5 sm:grid-cols-[4rem_7rem_minmax(0,1fr)] sm:gap-8">
-                  <p className="font-mono text-2xl text-muted sm:text-4xl">
-                    {String(index + 1).padStart(2, "0")}
-                  </p>
-                  <MoviePoster title={title} posterUrl={movie.posterUrl} />
-                  <div className="min-w-0">
-                    <h2 className="text-xl font-medium tracking-tight sm:text-3xl">
-                      {title}
-                    </h2>
-                    {displayOriginalLine(movie, language) && (
-                      <p className="mt-2 text-sm text-muted">
-                        {displayOriginalLine(movie, language)}
+          {displayError && (
+            <p className="mt-8 text-sm text-neutral-300" role="alert">
+              {displayError}
+            </p>
+          )}
+
+          {isLoading ? (
+            <p className="mt-16 text-sm text-muted">{t("loading")}</p>
+          ) : movies.length === 0 ? (
+            <p className="mt-16 text-sm text-muted">{t("rankingEmpty")}</p>
+          ) : (
+            <ol className="mt-12 divide-y divide-border">
+              {movies.map((movie, index) => {
+                const title = displayTitle(movie, language);
+
+                return (
+                  <li key={movie.externalId} className="py-10 first:pt-0">
+                    <article className="grid grid-cols-[auto_5.5rem_minmax(0,1fr)] items-start gap-5 sm:grid-cols-[4rem_7rem_minmax(0,1fr)] sm:gap-8">
+                      <p className="font-mono text-2xl text-muted sm:text-4xl">
+                        {String(index + 1).padStart(2, "0")}
                       </p>
-                    )}
-                    {creditLine(movie, language) && (
-                      <p className="mt-2 text-sm text-muted">
-                        {creditLine(movie, language)}
-                      </p>
-                    )}
-                    <ExpandableOverview
-                      text={displayOverview(movie, language, t("noSynopsis"))}
-                    />
-                    <MovieJournalActions
-                      externalId={movie.externalId}
-                      variant="ranking"
-                      onMessage={setMessage}
-                      onError={setError}
-                    />
-                  </div>
-                </article>
-              </li>
-            );
-          })}
-        </ol>
+                      <MoviePoster title={title} posterUrl={movie.posterUrl} />
+                      <div className="min-w-0">
+                        <h2 className="text-xl font-medium tracking-tight sm:text-3xl">
+                          {title}
+                        </h2>
+                        {displayOriginalLine(movie, language) && (
+                          <p className="mt-2 text-sm text-muted">
+                            {displayOriginalLine(movie, language)}
+                          </p>
+                        )}
+                        {creditLine(movie, language) && (
+                          <p className="mt-2 text-sm text-muted">
+                            {creditLine(movie, language)}
+                          </p>
+                        )}
+                        <ExpandableOverview
+                          text={displayOverview(
+                            movie,
+                            language,
+                            t("noSynopsis")
+                          )}
+                        />
+                        <MovieJournalActions
+                          externalId={movie.externalId}
+                          variant="ranking"
+                          onMessage={setMessage}
+                          onError={setError}
+                        />
+                      </div>
+                    </article>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+
+          <CollectionsSection />
+        </>
       )}
     </main>
   );

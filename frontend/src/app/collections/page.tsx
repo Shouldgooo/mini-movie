@@ -1,5 +1,5 @@
-import CollectionsIndexPage from "@/components/CollectionsIndexPage";
+import { redirect } from "next/navigation";
 
 export default function Collections() {
-  return <CollectionsIndexPage />;
+  redirect("/discover");
 }

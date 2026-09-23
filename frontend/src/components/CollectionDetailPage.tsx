@@ -107,7 +107,7 @@ export default function CollectionDetailPage() {
   return (
     <main className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-16">
       <Link
-        href="/collections"
+        href="/discover#collections"
         className="text-sm text-muted underline-offset-4 hover:text-foreground hover:underline"
       >
         {t("allCollections")}
