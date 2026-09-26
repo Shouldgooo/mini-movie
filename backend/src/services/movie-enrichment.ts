@@ -4,6 +4,7 @@ import {
   TmdbNotFoundError,
   TmdbUnavailableError,
   tmdbClient,
+  withoutExcludedProductionCountries,
   type CatalogMovie,
 } from "./tmdb.js";
 
@@ -138,7 +139,9 @@ export async function enrichCatalogMovies(
     movies.map((movie) => [movie.externalId, movie] as const)
   );
 
-  return tmdbIds
-    .map((id) => byId.get(String(id)))
-    .filter((movie): movie is CatalogMovie => movie !== undefined);
+  return withoutExcludedProductionCountries(
+    tmdbIds
+      .map((id) => byId.get(String(id)))
+      .filter((movie): movie is CatalogMovie => movie !== undefined)
+  );
 }

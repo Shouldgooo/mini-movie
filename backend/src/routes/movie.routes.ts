@@ -12,6 +12,7 @@ import {
   TmdbNotFoundError,
   TmdbUnavailableError,
   tmdbClient,
+  withoutExcludedProductionCountries,
 } from "../services/tmdb.js";
 import { curation, type RankingKind } from "../services/curation.js";
 import { getRestrictedMainlandCollection } from "../services/restricted-mainland.js";
@@ -124,7 +125,9 @@ router.get("/restricted-mainland", async (req, res) => {
 router.get("/search", async (req, res) => {
   try {
     const query = parseSearchQuery(req.query as Record<string, unknown>);
-    const movies = await tmdbClient.searchMovies(query);
+    const movies = withoutExcludedProductionCountries(
+      await tmdbClient.searchMovies(query)
+    );
     return res.status(200).json(movies);
   } catch (error) {
     if (error instanceof SearchQueryError) {
@@ -148,9 +151,11 @@ router.get("/", async (req, res) => {
     const query =
       typeof rawQuery === "string" ? rawQuery.trim() : "";
 
-    const movies = query
-      ? await tmdbClient.searchMovies(query)
-      : await tmdbClient.getPopularMovies();
+    const movies = withoutExcludedProductionCountries(
+      query
+        ? await tmdbClient.searchMovies(query)
+        : await tmdbClient.getPopularMovies()
+    );
 
     return res.status(200).json(movies);
   } catch (error) {

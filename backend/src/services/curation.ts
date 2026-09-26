@@ -1,7 +1,9 @@
 import {
+  hasExcludedProductionCountry,
   isMissingOverview,
   tmdbClient,
   toCatalogMovie,
+  withoutExcludedProductionCountries,
   type CatalogMovie,
   type TmdbCandidate,
 } from "./tmdb.js";
@@ -462,21 +464,51 @@ export function curateCandidates(
     .sort((left, right) => curationScore(right, kind) - curationScore(left, kind));
 }
 
+export function dailyCandidatePool(movies: TmdbCandidate[]) {
+  const curated = curateCandidates(movies, "today");
+  return curated.length > 0
+    ? curated
+    : movies.filter((movie) => !isExcludedFormat(movie));
+}
+
 export function pickDailyFromPool(
   movies: TmdbCandidate[],
   dayKey = utcDayKey()
 ) {
-  const curated = curateCandidates(movies, "today");
-  const pool =
-    curated.length > 0
-      ? curated
-      : movies.filter((movie) => !isExcludedFormat(movie));
+  const pool = dailyCandidatePool(movies);
 
   if (pool.length === 0) {
     return null;
   }
 
   return pool[pickIndexForDay(pool.length, dayKey)] ?? null;
+}
+
+export async function firstAllowedHydratedMovie(
+  movies: TmdbCandidate[],
+  startIndex = 0
+): Promise<CatalogMovie | null> {
+  if (movies.length === 0) {
+    return null;
+  }
+
+  const attempts = Math.min(movies.length, RANKING_LIMIT);
+
+  for (let offset = 0; offset < attempts; offset += 1) {
+    const candidate = movies[(startIndex + offset) % movies.length];
+
+    if (!candidate) {
+      continue;
+    }
+
+    const movie = await hydrateMovie(candidate);
+
+    if (!hasExcludedProductionCountry(movie)) {
+      return movie;
+    }
+  }
+
+  return null;
 }
 
 export function uniqueCandidates(movies: TmdbCandidate[]) {
@@ -718,33 +750,56 @@ async function getDailyRecommendation(): Promise<CatalogMovie | null> {
     loadTodayCandidates(EMPTY_FILTERS),
     loadClassicCandidates(EMPTY_FILTERS),
   ]);
-  const selected = pickDailyFromPool(
-    uniqueCandidates([...todayCandidates, ...classicCandidates])
+  const pool = dailyCandidatePool(
+    withoutExcludedProductionCountries(
+      uniqueCandidates([...todayCandidates, ...classicCandidates])
+    )
   );
 
-  if (!selected) {
+  if (pool.length === 0) {
     return null;
   }
 
-  return hydrateMovie(selected);
+  return firstAllowedHydratedMovie(
+    pool,
+    pickIndexForDay(pool.length, utcDayKey())
+  );
 }
 
 async function getRanking(
   kind: RankingKind,
   filters: RankingFilters = EMPTY_FILTERS
 ): Promise<CatalogMovie[]> {
-  let candidates = await loadCandidates(kind, filters);
+  let candidates = withoutExcludedProductionCountries(
+    await loadCandidates(kind, filters)
+  );
 
   if (filters.region !== "all") {
-    candidates = await enrichOriginCountries(candidates);
+    candidates = withoutExcludedProductionCountries(
+      await enrichOriginCountries(candidates)
+    );
   }
 
-  const ranked = curateCandidates(candidates, kind)
-    .filter((movie) => matchesRegion(movie, filters.region))
-    .filter((movie) => matchesYear(movie, filters.year))
-    .slice(0, RANKING_LIMIT);
+  const ranked = withoutExcludedProductionCountries(
+    curateCandidates(candidates, kind)
+      .filter((movie) => matchesRegion(movie, filters.region))
+      .filter((movie) => matchesYear(movie, filters.year))
+  );
 
-  return Promise.all(ranked.map(hydrateMovie));
+  const picked: CatalogMovie[] = [];
+  let index = 0;
+
+  while (picked.length < RANKING_LIMIT && index < ranked.length) {
+    const batch = ranked.slice(
+      index,
+      index + (RANKING_LIMIT - picked.length)
+    );
+    const hydrated = await Promise.all(batch.map(hydrateMovie));
+    picked.push(...withoutExcludedProductionCountries(hydrated));
+    index += batch.length;
+  }
+
+  return picked.slice(0, RANKING_LIMIT);
 }
 
 export const curation = {

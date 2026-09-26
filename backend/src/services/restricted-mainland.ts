@@ -7,7 +7,7 @@ import { TmdbNotFoundError, TmdbUnavailableError } from "./tmdb.js";
 import { enrichCatalogMovie } from "./movie-enrichment.js";
 import { localizeRestrictionFields } from "./restriction-i18n.js";
 import type { YearFilter } from "../lib/validation.js";
-import type { CatalogMovie } from "./tmdb.js";
+import { withoutExcludedProductionCountries, type CatalogMovie } from "./tmdb.js";
 
 export type RestrictedMainlandMovie = CatalogMovie & {
   restrictionStatus: string;
@@ -91,5 +91,7 @@ export async function getRestrictedMainlandCollection(
     throw new TmdbUnavailableError();
   }
 
-  return movies.filter((movie) => matchesReleaseYear(movie.releaseYear, year));
+  return withoutExcludedProductionCountries(
+    movies.filter((movie) => matchesReleaseYear(movie.releaseYear, year))
+  );
 }

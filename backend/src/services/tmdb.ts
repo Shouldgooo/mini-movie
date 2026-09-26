@@ -204,6 +204,37 @@ export function countryLabel(code: string): string {
   return COUNTRY_NAMES[code] ?? code;
 }
 
+export const EXCLUDED_PRODUCTION_COUNTRY = "IN";
+
+const EXCLUDED_COUNTRY_LABELS = new Set(["india", "印度"]);
+
+export function hasExcludedProductionCountry(movie: {
+  originCountries?: string[] | null;
+  countries?: string[] | null;
+  countriesZh?: string[] | null;
+  countriesEn?: string[] | null;
+}): boolean {
+  if (
+    (movie.originCountries ?? []).some(
+      (code) => code.trim().toUpperCase() === EXCLUDED_PRODUCTION_COUNTRY
+    )
+  ) {
+    return true;
+  }
+
+  return [
+    ...(movie.countries ?? []),
+    ...(movie.countriesZh ?? []),
+    ...(movie.countriesEn ?? []),
+  ].some((label) => EXCLUDED_COUNTRY_LABELS.has(label.trim().toLowerCase()));
+}
+
+export function withoutExcludedProductionCountries<
+  T extends { originCountries?: string[] | null },
+>(movies: T[]): T[] {
+  return movies.filter((movie) => !hasExcludedProductionCountry(movie));
+}
+
 function uniqueCodes(codes: string[]): string[] {
   const seen = new Set<string>();
   const unique: string[] = [];
@@ -368,9 +399,11 @@ async function tmdbGet<T>(path: string, params: Record<string, string> = {}): Pr
 }
 
 function mapCandidates(results: TmdbMovieResult[] | undefined): TmdbCandidate[] {
-  return (results ?? [])
-    .map((movie) => toTmdbCandidate(movie))
-    .filter((movie): movie is TmdbCandidate => movie !== null);
+  return withoutExcludedProductionCountries(
+    (results ?? [])
+      .map((movie) => toTmdbCandidate(movie))
+      .filter((movie): movie is TmdbCandidate => movie !== null)
+  );
 }
 
 async function getPopularMovies(): Promise<CatalogMovie[]> {
